@@ -5,10 +5,9 @@
 # application root, installs dependencies and rebuilds the site.
 #
 # ---------------------------------------------------------------------------
-# BEFORE FIRST USE: replace CPANELUSER below with your actual cPanel username
-# (shown top-right in cPanel, and in the path of your home directory).
-# If your Node.js app root is not ~/farmyuga, change DEPLOYPATH to match the
-# "Application root" you set in Setup Node.js App.
+# Configured for cPanel user "highleap", Node 24, app root ~/farmyuga.
+# If you ever change the Node version in Setup Node.js App, update the version
+# number in NODEENV below to match the `source ...` command cPanel shows there.
 # ---------------------------------------------------------------------------
 #
 # Note: cPanel's deploy shell does not have the Node.js virtualenv on PATH by
@@ -20,8 +19,8 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/CPANELUSER/farmyuga
-    - export NODEENV=/home/CPANELUSER/nodevenv/farmyuga/22/bin/activate
+    - export DEPLOYPATH=/home/highleap/farmyuga
+    - export NODEENV=/home/highleap/nodevenv/farmyuga/24/bin/activate
 
     # Sync the repo into the app root, leaving node_modules and .next in place
     # so npm can do an incremental install rather than a cold one.
