@@ -136,30 +136,114 @@ to the contact form with the item pre-filled.
 ## Lead handling
 
 The forms POST to [`app/api/inquiry/route.ts`](app/api/inquiry/route.ts), which
-re-validates with the same zod schema, silently drops honeypot submissions and
-**logs the lead to the server console**. There is no database.
+re-validates with the same zod schema, drops honeypot submissions, logs the lead,
+then hands it to [`lib/notify.ts`](lib/notify.ts) for delivery on two channels:
 
-To receive leads properly, replace the `console.log` — the file has a clearly marked
-`// TODO: wire to email provider / CRM` block with worked examples for Resend, a
-generic webhook and a WhatsApp notification. Keep the response shape as
-`{ ok: true }` so the form keeps working. Put any keys in `.env.local`.
+1. **Email** over your cPanel mailbox's SMTP (nodemailer) — a formatted lead card
+   sent to `LEAD_TO_EMAIL`, with `Reply-To` set to the enquirer so you can answer
+   straight from your inbox.
+2. **WhatsApp alert** via the Meta Cloud API — a short summary to your dispatch
+   number so a 5 AM bulk enquiry is not missed.
+
+Both are **best effort**. If credentials are missing or a provider is down, the
+failure is logged and the visitor still sees the success panel — the lead is always
+written to the application log first, so nothing is lost even if both channels fail.
+Grep the cPanel log for `[farmyuga] new inquiry` to recover one.
+
+There is no database. Configure everything through environment variables — see
+[`.env.example`](.env.example), which documents each one.
+
+### The WhatsApp constraint, in short
+
+Meta only allows free-form WhatsApp text inside a 24-hour reply window. A
+business-initiated alert therefore needs an **approved message template** with one
+body variable. Until you create one and set `WHATSAPP_TEMPLATE_NAME`, the code
+falls back to a plain text message, which only arrives if your alert number has
+messaged the business number in the last 24 hours. Email works immediately with no
+such restriction.
 
 ---
 
-## Deploying to Vercel
+## Deploying to cPanel (Node.js app + GitHub)
 
-1. Push this folder to a Git repository (GitHub, GitLab or Bitbucket).
-2. Go to [vercel.com/new](https://vercel.com/new), import the repository. Vercel detects
-   Next.js automatically — no build settings to change.
-3. Add any environment variables you introduced for the lead handler
-   (e.g. `RESEND_API_KEY`) under **Settings → Environment Variables**.
-4. Deploy, then add your domain under **Settings → Domains**.
-5. **Set `url` in `lib/site-config.ts` to that domain** and redeploy — the sitemap,
-   canonical URLs, OpenGraph tags and JSON-LD all derive from it.
+This site is a Next.js **server** app, not a folder of static HTML. It needs
+cPanel's *Setup Node.js App* (Passenger). [`server.js`](server.js) is the Passenger
+entry point and [`.cpanel.yml`](.cpanel.yml) drives deployment from GitHub.
+
+### One-time setup
+
+1. **cPanel → Setup Node.js App → Create Application**
+   - Node.js version: **20 or newer** (Next.js 16 requires >= 20.9)
+   - Application mode: **Production**
+   - Application root: `farmyuga`
+   - Application URL: your domain
+   - Application startup file: `server.js`
+
+   Copy the `source /home/USER/nodevenv/...` command cPanel shows at the top of
+   that page — you need it in the next step.
+
+2. **Edit [`.cpanel.yml`](.cpanel.yml)**: replace `CPANELUSER` with your cPanel
+   username, and make sure the `NODEENV` path matches the `source` command from
+   step 1 (the `22` in the path is the Node version you chose). Commit and push.
+
+3. **Give cPanel access to the private repo**
+   - cPanel → **SSH Access → Manage SSH Keys** → generate a key, then **authorise** it
+   - Copy the **public** key, and on GitHub go to
+     **repo → Settings → Deploy keys → Add deploy key**, paste it, read-only is fine
+
+4. **cPanel → Git Version Control → Create**
+   - Clone URL: `git@github.com:thevipulkumar/Farmyuga.git`
+   - Repository path: `repositories/farmyuga` (keep this separate from the app root)
+
+5. **Set the environment variables** in Setup Node.js App (SMTP + WhatsApp — see
+   [`.env.example`](.env.example)). Never upload a `.env` file to the server.
+
+6. **Deploy**: Git Version Control → **Update from Remote** → **Deploy HEAD Commit**.
+   That runs `.cpanel.yml`: rsync into the app root, `npm ci`, `npm run build`, then
+   touches `tmp/restart.txt` so Passenger reloads.
+
+### Every deploy after that
+
+```bash
+git push
+```
+
+Then in cPanel: **Update from Remote** → **Deploy HEAD Commit**. Nothing else.
+
+### If the build runs out of memory
+
+Shared hosting sometimes kills `next build`. Two options: raise the limit by
+changing the build task in `.cpanel.yml` to
+`NODE_OPTIONS=--max-old-space-size=2048 npm run build`, or build locally with
+`npm run build` and upload the generated `.next` folder alongside the code.
+
+### Troubleshooting
+
+| Symptom | Cause |
+| ------- | ----- |
+| 503 / "Passenger error" | `npm run build` did not run, or `.next` is missing from the app root |
+| Site loads but forms fail | Env vars not set, or the app was not restarted after setting them |
+| Old content after deploying | Passenger did not reload — touch `tmp/restart.txt`, or hit **Restart** in Setup Node.js App |
+| `next: not found` during deploy | The `source $NODEENV` path in `.cpanel.yml` does not match your app |
+
+Application logs live in cPanel → Setup Node.js App → your app, and in
+`~/logs/`. That is where `[farmyuga] new inquiry` lines appear.
+
+---
+
+## Deploying to Vercel (alternative)
+
+If you ever move off cPanel: push to GitHub, import the repo at
+[vercel.com/new](https://vercel.com/new), add the same environment variables under
+**Settings → Environment Variables**, and deploy. Vercel detects Next.js with no
+configuration, and `server.js` / `.cpanel.yml` are simply ignored.
+
+**Whichever host you use**, set `url` in `lib/site-config.ts` to your live domain and
+redeploy — the sitemap, canonical URLs, OpenGraph tags and JSON-LD all derive from it.
 
 After launch, submit `https://yourdomain.com/sitemap.xml` in Google Search Console and
-create a Google Business Profile for the Ratu Road address so the LocalBusiness schema on
-this site has something to reinforce.
+create a Google Business Profile for the Ratu Road address so the LocalBusiness schema
+on this site has something to reinforce.
 
 ---
 

@@ -1,0 +1,45 @@
+# cPanel Git Version Control deployment.
+#
+# Runs when you press "Deploy HEAD Commit" in cPanel → Git Version Control,
+# after pulling from GitHub. It copies the working tree into the Node.js
+# application root, installs dependencies and rebuilds the site.
+#
+# ---------------------------------------------------------------------------
+# BEFORE FIRST USE: replace CPANELUSER below with your actual cPanel username
+# (shown top-right in cPanel, and in the path of your home directory).
+# If your Node.js app root is not ~/farmyuga, change DEPLOYPATH to match the
+# "Application root" you set in Setup Node.js App.
+# ---------------------------------------------------------------------------
+#
+# Note: cPanel's deploy shell does not have the Node.js virtualenv on PATH by
+# default, which is why each build step sources the app's activation script
+# first. cPanel prints that exact `source ...` command at the top of the
+# Setup Node.js App page for your application — if the path below does not
+# match it, copy theirs over these lines.
+
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/CPANELUSER/farmyuga
+    - export NODEENV=/home/CPANELUSER/nodevenv/farmyuga/22/bin/activate
+
+    # Sync the repo into the app root, leaving node_modules and .next in place
+    # so npm can do an incremental install rather than a cold one.
+    - /bin/mkdir -p $DEPLOYPATH
+    - >-
+      /usr/bin/rsync -a --delete
+      --exclude '.git'
+      --exclude 'node_modules'
+      --exclude '.next'
+      --exclude '.env.local'
+      ./ $DEPLOYPATH/
+
+    # Install exactly what package-lock.json specifies, then build.
+    # Dev dependencies are needed here: `next build` type-checks with
+    # TypeScript, so do NOT add --omit=dev.
+    - /bin/bash -lc "source $NODEENV && cd $DEPLOYPATH && (npm ci --no-audit --no-fund || npm install --no-audit --no-fund)"
+    - /bin/bash -lc "source $NODEENV && cd $DEPLOYPATH && NODE_ENV=production npm run build"
+
+    # Passenger reloads the app when this file's timestamp changes.
+    - /bin/mkdir -p $DEPLOYPATH/tmp
+    - /bin/touch $DEPLOYPATH/tmp/restart.txt

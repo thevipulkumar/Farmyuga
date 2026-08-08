@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 
 import { inquirySchema } from "@/lib/inquiry-schema";
+import { deliverLead, type Lead } from "@/lib/notify";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
  * Lead capture endpoint.
  *
  * Validates with the same zod schema the form uses, drops obvious spam,
- * logs the payload and returns { ok: true }. There is no database and no
- * payment step anywhere on this site — every path ends in a lead.
+ * then emails the lead and fires a WhatsApp alert (see lib/notify.ts).
+ * There is no database and no payment step anywhere on this site — every
+ * path ends in a lead.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -46,41 +49,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const lead = {
+  const lead: Lead = {
     ...inquiry,
     receivedAt: new Date().toISOString(),
     source: "farmyuga.com",
   };
 
-  // Visible in the server console / hosting logs until a provider is wired up.
+  // Always log first. If both delivery channels fail, the lead still exists
+  // in the cPanel application log and can be recovered.
   console.log("[farmyuga] new inquiry:", JSON.stringify(lead, null, 2));
 
-  /* --------------------------------------------------------------------
-     TODO: wire to email provider / CRM
-     --------------------------------------------------------------------
-     Replace the console.log above with a real delivery step. Examples:
+  // Email + WhatsApp alert. deliverLead never throws; a delivery failure
+  // must not show the visitor an error after they have already typed
+  // everything out. Configure credentials in cPanel → Setup Node.js App →
+  // Environment variables (see .env.example).
+  const delivery = await deliverLead(lead);
 
-       1. Email (Resend):
-            const resend = new Resend(process.env.RESEND_API_KEY);
-            await resend.emails.send({
-              from: "Farmyuga site <no-reply@farmyuga.com>",
-              to: "hello@farmyuga.com",
-              subject: `New ${lead.variant} inquiry — ${lead.name}`,
-              text: JSON.stringify(lead, null, 2),
-            });
-
-       2. Google Sheets / CRM webhook:
-            await fetch(process.env.LEADS_WEBHOOK_URL!, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(lead),
-            });
-
-       3. WhatsApp Business API notification to the dispatch desk.
-
-     Keep the response shape as { ok: true } so the form keeps working.
-     Add any secrets to .env.local — never commit them.
-  -------------------------------------------------------------------- */
+  if (!delivery.email.ok && !delivery.whatsapp.ok) {
+    console.error(
+      "[farmyuga] LEAD NOT DELIVERED — check SMTP / WhatsApp settings. Payload logged above.",
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }
