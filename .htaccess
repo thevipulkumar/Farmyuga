@@ -1,0 +1,66 @@
+# =============================================================================
+# FARMYUGA — Apache / LiteSpeed configuration for the static export
+# Copied into out/ by `next build`. Upload it to public_html alongside the site.
+# =============================================================================
+
+# Don't let anyone browse a directory that has no index file.
+Options -Indexes
+
+# Next.js writes 404.html for the not-found page.
+ErrorDocument 404 /404.html
+
+# -----------------------------------------------------------------------------
+# Protect the lead log. inquiry.php writes it ABOVE public_html so it should
+# never be reachable anyway — this is a second lock on the same door, in case
+# the file is ever moved. It holds customer names and phone numbers.
+# -----------------------------------------------------------------------------
+<FilesMatch "(farmyuga-inquiries\.log|inquiries\.log|\.env.*)$">
+  Require all denied
+</FilesMatch>
+
+# -----------------------------------------------------------------------------
+# Compression
+# -----------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# -----------------------------------------------------------------------------
+# Caching
+#
+# Everything under /_next/static/ carries a content hash in its filename, so it
+# can be cached forever. HTML must not be, or visitors keep seeing old pages
+# after a deploy.
+# -----------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2?)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  <FilesMatch "\.(png|jpe?g|gif|webp|avif|svg|ico)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+
+  <FilesMatch "\.html$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+
+  # Basic hardening
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# -----------------------------------------------------------------------------
+# Force HTTPS. Hostinger also offers a toggle for this in hPanel; leaving both
+# on is harmless. Comment this block out until your SSL certificate is issued,
+# otherwise visitors hit a certificate warning.
+# -----------------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+</IfModule>

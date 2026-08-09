@@ -1,0 +1,6 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+
+Host: https://farmyuga.com
+Sitemap: https://farmyuga.com/sitemap.xml
