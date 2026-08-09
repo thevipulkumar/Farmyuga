@@ -47,12 +47,21 @@ export const metadata: Metadata = {
     title: `${siteConfig.name} — Fresh Vegetable Supplier in Ranchi`,
     description:
       "Farm-direct vegetables delivered every morning across Ranchi. Bulk supply for hotels, restaurants and canteens; doorstep baskets for homes.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: `${siteConfig.name} — fresh vegetable supplier on Ratu Road, Ranchi`,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: `${siteConfig.name} — Fresh Vegetable Supplier in Ranchi`,
     description:
       "Daily bulk vegetable supply and home delivery across Ranchi, from Ratu Road. Quote-based rates, GST invoicing, 5 AM dispatch.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -83,7 +92,7 @@ const localBusinessSchema = {
   currenciesAccepted: "INR",
   paymentAccepted: "Cash, UPI, Bank Transfer, Credit (verified businesses)",
   foundingDate: String(siteConfig.founded),
-  image: `${siteConfig.url}/opengraph-image`,
+  image: `${siteConfig.url}/og-image.png`,
   address: {
     "@type": "PostalAddress",
     streetAddress: siteConfig.address.street,

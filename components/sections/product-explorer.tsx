@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Search, SearchX } from "lucide-react";
 
 import { ProductCard } from "@/components/shared/product-card";
@@ -11,12 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { productCategories, products } from "@/lib/products";
 
-type ProductExplorerProps = {
-  /** Category id from ?category= — falls back to "all". */
-  initialCategory?: string;
-};
+/**
+ * Reads ?category= on the client. The site is a static export, so there is no
+ * server to hand us searchParams — useSearchParams resolves after hydration,
+ * which is why the whole thing sits inside a Suspense boundary below.
+ */
+function ProductExplorerInner() {
+  const searchParams = useSearchParams();
+  const requested = searchParams.get("category");
+  const initialCategory = productCategories.some((c) => c.id === requested)
+    ? requested!
+    : "all";
 
-export function ProductExplorer({ initialCategory = "all" }: ProductExplorerProps) {
   const [category, setCategory] = React.useState(initialCategory);
   const [query, setQuery] = React.useState("");
 
@@ -121,6 +128,39 @@ export function ProductExplorer({ initialCategory = "all" }: ProductExplorerProp
             </Button>
           </div>
         )}
+      </Container>
+    </Section>
+  );
+}
+
+/**
+ * useSearchParams must be wrapped in Suspense so the rest of the page can be
+ * prerendered as static HTML.
+ */
+export function ProductExplorer() {
+  return (
+    <React.Suspense fallback={<ProductExplorerFallback />}>
+      <ProductExplorerInner />
+    </React.Suspense>
+  );
+}
+
+function ProductExplorerFallback() {
+  return (
+    <Section tone="white" aria-labelledby="catalogue-heading" id="catalogue">
+      <Container>
+        <span className="type-eyebrow text-brand-green">Full catalogue</span>
+        <h2 id="catalogue-heading" className="type-h2 mt-4">
+          Everything we crate, in one place
+        </h2>
+        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-72 animate-pulse rounded-2xl border border-border bg-cream"
+            />
+          ))}
+        </div>
       </Container>
     </Section>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { Building2, CircleCheckBig, Home, Loader2, Send } from "lucide-react";
@@ -32,9 +33,12 @@ type Variant = "general" | "bulk" | "home";
 type QuoteFormProps = {
   variant?: Variant;
   className?: string;
-  /** Pre-fills the requirement box, e.g. from a product card's "Ask Price". */
+  /** Pre-fills the requirement box. ?item= on /contact/ also fills it. */
   defaultRequirement?: string;
 };
+
+/** Where the form posts. A PHP script, because the site is a static export. */
+const INQUIRY_ENDPOINT = "/api/inquiry.php";
 
 const copy: Record<Variant, { submit: string; success: string }> = {
   general: {
@@ -63,11 +67,17 @@ function FieldError({ message }: { message?: string }) {
   );
 }
 
-export function QuoteForm({
+function QuoteFormInner({
   variant = "general",
   className,
   defaultRequirement = "",
 }: QuoteFormProps) {
+  // A product card's "Ask Price" links to /contact/?item=Spinach.
+  const itemParam = useSearchParams().get("item");
+  const seededRequirement = itemParam
+    ? `I'd like today's rate for ${itemParam}. Quantity needed: `
+    : defaultRequirement;
+
   const [submitted, setSubmitted] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
 
@@ -87,7 +97,7 @@ export function QuoteForm({
       audience: variant === "home" ? "household" : "business",
       businessName: "",
       locality: "",
-      requirement: defaultRequirement,
+      requirement: seededRequirement,
       deliveryTime:
         variant === "home" ? deliveryTimeOptions[1] : deliveryTimeOptions[0],
       website: "",
@@ -99,7 +109,7 @@ export function QuoteForm({
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
     try {
-      const res = await fetch("/api/inquiry", {
+      const res = await fetch(INQUIRY_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
@@ -438,5 +448,26 @@ export function QuoteForm({
         </p>
       </div>
     </form>
+  );
+}
+
+/**
+ * useSearchParams needs a Suspense boundary so the surrounding page can still
+ * be prerendered to static HTML at build time.
+ */
+export function QuoteForm(props: QuoteFormProps) {
+  return (
+    <React.Suspense
+      fallback={
+        <div
+          className={cn(
+            "h-[42rem] animate-pulse rounded-2xl border border-border bg-cream",
+            props.className,
+          )}
+        />
+      }
+    >
+      <QuoteFormInner {...props} />
+    </React.Suspense>
   );
 }

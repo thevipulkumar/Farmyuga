@@ -9,7 +9,6 @@ import { Container, Section } from "@/components/shared/container";
 import { Reveal } from "@/components/shared/reveal";
 import { WhatsAppButton } from "@/components/shared/whatsapp-button";
 import { Button } from "@/components/ui/button";
-import { productCategories } from "@/lib/products";
 
 export const metadata: Metadata = {
   title: "Vegetable Catalogue — 40+ Varieties Supplied Daily in Ranchi",
@@ -36,14 +35,7 @@ const notes = [
   },
 ];
 
-export default async function ProductsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string }>;
-}) {
-  const { category } = await searchParams;
-  const valid = productCategories.some((c) => c.id === category);
-
+export default function ProductsPage() {
   return (
     <>
       <PageHero
@@ -72,7 +64,7 @@ export default async function ProductsPage({
         }
       />
 
-      <ProductExplorer initialCategory={valid ? category : "all"} />
+      <ProductExplorer />
 
       <Section tone="cream" aria-labelledby="notes-heading">
         <Container>

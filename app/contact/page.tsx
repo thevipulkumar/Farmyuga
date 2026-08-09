@@ -17,16 +17,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/contact" },
 };
 
-export default async function ContactPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ item?: string }>;
-}) {
-  const { item } = await searchParams;
-  const defaultRequirement = item
-    ? `I'd like today's rate for ${item}. Quantity needed: `
-    : "";
-
+export default function ContactPage() {
   return (
     <>
       <PageHero
@@ -73,11 +64,7 @@ export default async function ContactPage({
                   One form for homes and businesses. Pick which you are and the fields
                   adjust. Nothing here is a commitment — it just gets you a real number.
                 </p>
-                <QuoteForm
-                  variant="general"
-                  defaultRequirement={defaultRequirement}
-                  className="mt-8"
-                />
+                <QuoteForm variant="general" className="mt-8" />
               </div>
             </Reveal>
 

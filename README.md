@@ -23,7 +23,8 @@ phone call.
 | Motion           | framer-motion — entrance fades only, reduced-motion aware  |
 | Forms            | react-hook-form + zod (one schema shared by form and API)  |
 | Fonts            | `next/font/google` — Poppins 400/500/600/700/800           |
-| Images           | `next/image`, remote pattern for `images.unsplash.com`     |
+| Images           | `next/image` (unoptimized — static export), Unsplash CDN   |
+| Output           | **Static export** to `out/` + one PHP endpoint for the form |
 
 ---
 
@@ -49,6 +50,10 @@ npm run build
 npm run lint
 ```
 
+`npm run build` produces a complete static site in **`out/`** — that folder is
+what gets uploaded. `npm start` serves `out/` locally so you can check the built
+site before uploading.
+
 Both must pass cleanly before you deploy. There are currently zero TypeScript and
 zero ESLint errors.
 
@@ -73,6 +78,9 @@ Change it once and the header, footer, contact page, every WhatsApp button, ever
 **Already set to real values** (no action needed): phone `+91 72099 09097`, the same
 number for WhatsApp, and the address `Ratu Road, Ranchi, Jharkhand 834001`.
 
+**Note:** `LEAD_TO_EMAIL` is no longer set here — on shared hosting it lives at the
+top of [`public/api/inquiry.php`](public/api/inquiry.php).
+
 Two other things worth a look before launch:
 
 - **Testimonials** — [`lib/testimonials.ts`](lib/testimonials.ts) contains three
@@ -96,7 +104,7 @@ No content is hardcoded in components. Everything is a typed data file under `li
 | `lib/testimonials.ts` | Customer reviews |
 | `lib/faq.ts` | Home-page FAQs and the extra B2B FAQs |
 | `lib/content.ts` | Trust stats, audience paths, features, steps, supply plans, values, timeline |
-| `lib/inquiry-schema.ts` | The zod schema shared by the form and the API route |
+| `lib/inquiry-schema.ts` | The zod schema the form validates against in the browser |
 
 ### Adding a product
 
@@ -135,23 +143,23 @@ to the contact form with the item pre-filled.
 
 ## Lead handling
 
-The forms POST to [`app/api/inquiry/route.ts`](app/api/inquiry/route.ts), which
-re-validates with the same zod schema, drops honeypot submissions, logs the lead,
-then hands it to [`lib/notify.ts`](lib/notify.ts) for delivery on two channels:
+The forms POST to [`public/api/inquiry.php`](public/api/inquiry.php) (copied to
+`out/api/inquiry.php` at build time), which re-validates every field server-side,
+drops honeypot submissions, writes the lead to a log file above the web root,
+then delivers on two channels:
 
-1. **Email** over your cPanel mailbox's SMTP (nodemailer) — a formatted lead card
-   sent to `LEAD_TO_EMAIL`, with `Reply-To` set to the enquirer so you can answer
-   straight from your inbox.
+1. **Email** via PHP `mail()` — a formatted lead card sent to `$LEAD_TO_EMAIL`,
+   with `Reply-To` set to the enquirer so you can answer straight from your inbox.
 2. **WhatsApp alert** via the Meta Cloud API — a short summary to your dispatch
    number so a 5 AM bulk enquiry is not missed.
 
-Both are **best effort**. If credentials are missing or a provider is down, the
-failure is logged and the visitor still sees the success panel — the lead is always
-written to the application log first, so nothing is lost even if both channels fail.
-Grep the cPanel log for `[farmyuga] new inquiry` to recover one.
+Both are **best effort**. If mail fails or WhatsApp is unconfigured, the visitor
+still sees the success panel — the lead is written to `farmyuga-inquiries.log`
+(one level above `public_html`) *before* delivery is attempted, so nothing is
+lost even if both channels fail.
 
-There is no database. Configure everything through environment variables — see
-[`.env.example`](.env.example), which documents each one.
+There is no database. Configuration lives in the block at the top of
+`inquiry.php` — there are no environment variables on shared hosting.
 
 ### The WhatsApp constraint, in short
 
@@ -164,86 +172,102 @@ such restriction.
 
 ---
 
-## Deploying to cPanel (Node.js app + GitHub)
+## Deploying to Hostinger (shared hosting)
 
-This site is a Next.js **server** app, not a folder of static HTML. It needs
-cPanel's *Setup Node.js App* (Passenger). [`server.js`](server.js) is the Passenger
-entry point and [`.cpanel.yml`](.cpanel.yml) drives deployment from GitHub.
+Hostinger's shared plans run Apache/LiteSpeed with PHP — no persistent Node
+process. So the site is built into static HTML here, and only the finished
+`out/` folder is uploaded. The inquiry form posts to a small PHP script rather
+than a Node route.
+
+### Every deploy
+
+1. **Build locally**
+
+   ```bash
+   npm run build
+   ```
+
+2. **Upload the contents of `out/`** into `public_html` on the server —
+   hPanel → **File Manager**, or any FTP client. Upload the *contents*, not the
+   folder itself: `index.html` must sit directly in `public_html`.
+
+   Fastest route: zip the folder, upload one file, extract it in File Manager.
+
+   ```bash
+   cd out && zip -r ../farmyuga-site.zip . && cd ..
+   ```
+
+3. **Check `.htaccess` came across.** It is a hidden file — turn on *Show hidden
+   files* in File Manager. Without it, the 404 page and caching rules are lost.
 
 ### One-time setup
 
-1. **cPanel → Setup Node.js App → Create Application**
-   - Node.js version: **20 or newer** (Next.js 16 requires >= 20.9)
-   - Application mode: **Production**
-   - Application root: `farmyuga`
-   - Application URL: your domain
-   - Application startup file: `server.js`
+1. **Create the mailbox** — hPanel → **Emails → Create email account**, e.g.
+   `hello@yourdomain.com`. Also create `no-reply@yourdomain.com`, or reuse the
+   same address for both.
 
-   Copy the `source /home/USER/nodevenv/...` command cPanel shows at the top of
-   that page — you need it in the next step.
+2. **Configure the PHP endpoint.** Open `public_html/api/inquiry.php` in File
+   Manager and edit the block at the top:
 
-2. **Edit [`.cpanel.yml`](.cpanel.yml)**: replace `CPANELUSER` with your cPanel
-   username, and make sure the `NODEENV` path matches the `source` command from
-   step 1 (the `22` in the path is the Node version you chose). Commit and push.
+   ```php
+   $LEAD_TO_EMAIL   = 'hello@yourdomain.com';   // where leads arrive
+   $LEAD_FROM_EMAIL = 'no-reply@yourdomain.com'; // must be on YOUR domain
+   ```
 
-3. **Give cPanel access to the private repo**
-   - cPanel → **SSH Access → Manage SSH Keys** → generate a key, then **authorise** it
-   - Copy the **public** key, and on GitHub go to
-     **repo → Settings → Deploy keys → Add deploy key**, paste it, read-only is fine
+   `$LEAD_FROM_EMAIL` **must** be a real mailbox on your own domain. A From
+   address on someone else's domain gets treated as spoofed and lands in spam.
 
-4. **cPanel → Git Version Control → Create**
-   - Clone URL: `git@github.com:thevipulkumar/Farmyuga.git`
-   - Repository path: `repositories/farmyuga` (keep this separate from the app root)
+3. **SSL** — hPanel → **Security → SSL** → install the free certificate, then
+   turn on **Force HTTPS**.
 
-5. **Set the environment variables** in Setup Node.js App (SMTP + WhatsApp — see
-   [`.env.example`](.env.example)). Never upload a `.env` file to the server.
+4. **Set `url` in `lib/site-config.ts`** to your live domain, rebuild, re-upload.
+   The sitemap, canonical tags, OpenGraph URLs and JSON-LD all derive from it.
 
-6. **Deploy**: Git Version Control → **Update from Remote** → **Deploy HEAD Commit**.
-   That runs `.cpanel.yml`: rsync into the app root, `npm ci`, `npm run build`, then
-   touches `tmp/restart.txt` so Passenger reloads.
+### Testing the form after upload
 
-### Every deploy after that
+Submit a real inquiry through `/contact/`. You should get the email within a
+minute. If nothing arrives:
 
-```bash
-git push
-```
+- Every lead is also appended to `farmyuga-inquiries.log`, **one level above
+  `public_html`** — so nothing is ever lost even when mail fails. Check there
+  first; if the line exists, the capture worked and only delivery failed.
+- Check spam, then confirm `$LEAD_FROM_EMAIL` is a mailbox that actually exists.
+- hPanel → **Advanced → PHP Info** to confirm `mail()` is enabled.
 
-Then in cPanel: **Update from Remote** → **Deploy HEAD Commit**. Nothing else.
+The log file sits outside the web root deliberately — it contains customer names
+and phone numbers. Never move it into `public_html`.
 
-### If the build runs out of memory
+### WhatsApp alerts (optional)
 
-Shared hosting sometimes kills `next build`. Two options: raise the limit by
-changing the build task in `.cpanel.yml` to
-`NODE_OPTIONS=--max-old-space-size=2048 npm run build`, or build locally with
-`npm run build` and upload the generated `.next` folder alongside the code.
+Fill in the `$WHATSAPP_*` variables at the top of `inquiry.php`. You need a Meta
+WhatsApp Cloud API app, a permanent access token and your phone number ID.
 
-### Troubleshooting
+Note the constraint: Meta only allows free-form WhatsApp text inside a 24-hour
+reply window, so a business-initiated alert needs an **approved message template**
+with a single body variable. Until you create one and set
+`$WHATSAPP_TEMPLATE_NAME`, the fallback plain-text message only arrives if your
+alert number has messaged the business number within the last 24 hours. Email
+works immediately with none of this.
 
-| Symptom | Cause |
-| ------- | ----- |
-| 503 / "Passenger error" | `npm run build` did not run, or `.next` is missing from the app root |
-| Site loads but forms fail | Env vars not set, or the app was not restarted after setting them |
-| Old content after deploying | Passenger did not reload — touch `tmp/restart.txt`, or hit **Restart** in Setup Node.js App |
-| `next: not found` during deploy | The `source $NODEENV` path in `.cpanel.yml` does not match your app |
+### What static hosting costs you
 
-Application logs live in cPanel → Setup Node.js App → your app, and in
-`~/logs/`. That is where `[farmyuga] new inquiry` lines appear.
+| | Effect |
+| --- | --- |
+| Image optimization | Off. Little practical loss — every photo already requests an exact size from the Unsplash CDN |
+| Deploys | Manual upload rather than `git push`. The repo is still the source of truth |
+| Server rendering | None. `?category=` and `?item=` are read client-side instead |
+
+If you later move to a Hostinger **VPS** or any Node host, remove `output: "export"`
+from `next.config.ts`, restore an API route in place of the PHP script, and it
+becomes a normal server-rendered Next.js app again.
 
 ---
 
 ## Deploying to Vercel (alternative)
 
-If you ever move off cPanel: push to GitHub, import the repo at
-[vercel.com/new](https://vercel.com/new), add the same environment variables under
-**Settings → Environment Variables**, and deploy. Vercel detects Next.js with no
-configuration, and `server.js` / `.cpanel.yml` are simply ignored.
-
-**Whichever host you use**, set `url` in `lib/site-config.ts` to your live domain and
-redeploy — the sitemap, canonical URLs, OpenGraph tags and JSON-LD all derive from it.
-
-After launch, submit `https://yourdomain.com/sitemap.xml` in Google Search Console and
-create a Google Business Profile for the Ratu Road address so the LocalBusiness schema
-on this site has something to reinforce.
+Push to GitHub, import the repo at [vercel.com/new](https://vercel.com/new), and
+deploy. Vercel detects Next.js automatically. You would want to remove
+`output: "export"` first to get image optimization and a real API route back.
 
 ---
 
@@ -252,8 +276,8 @@ on this site has something to reinforce.
 - Per-page `metadata` exports with locally targeted titles and descriptions
 - `LocalBusiness` JSON-LD in the root layout (address, geo, `areaServed`, opening
   hours, telephone, `priceRange: "₹₹"`) and `FAQPage` JSON-LD on the home page
-- OpenGraph and Twitter card metadata, with a share image generated at build time by
-  [`app/opengraph-image.tsx`](app/opengraph-image.tsx)
+- OpenGraph and Twitter card metadata pointing at [`public/og-image.png`](public/og-image.png)
+  (1200×630 — replace it with a real photograph whenever you have one)
 - `app/sitemap.ts`, `app/robots.ts`, canonical URLs, and a brand favicon at `app/icon.svg`
 - One `<h1>` per page, `<section aria-labelledby>` throughout, descriptive `alt` text
   on every image
