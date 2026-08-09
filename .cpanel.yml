@@ -22,8 +22,9 @@ deployment:
     - export DEPLOYPATH=/home/highleap/farmyuga
     - export NODEENV=/home/highleap/nodevenv/farmyuga/24/bin/activate
 
-    # Sync the repo into the app root, leaving node_modules and .next in place
-    # so npm can do an incremental install rather than a cold one.
+    # Sync the repo into the app root. node_modules and .next are preserved so
+    # npm can install incrementally; tmp/ is preserved because Passenger's
+    # restart trigger lives there and --delete would otherwise remove it.
     - /bin/mkdir -p $DEPLOYPATH
     - >-
       /usr/bin/rsync -a --delete
@@ -31,6 +32,8 @@ deployment:
       --exclude 'node_modules'
       --exclude '.next'
       --exclude '.env.local'
+      --exclude 'tmp'
+      --exclude '*.log'
       ./ $DEPLOYPATH/
 
     # Install exactly what package-lock.json specifies, then build.
