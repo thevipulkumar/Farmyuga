@@ -198,7 +198,34 @@ That builds, verifies `index.html`, `.htaccess` and `api/inquiry.php` are all
 present, and force-pushes `out/` to the `deploy` branch as a single fresh commit.
 Then trigger the pull in hPanel (or let auto-deployment do it).
 
-### One-time: connect Hostinger to GitHub
+### Hostinger's built-in build (recommended)
+
+hPanel can build the project itself from GitHub. Settings that work:
+
+| Field | Value |
+| --- | --- |
+| Framework preset | Next.js |
+| Branch | `main` |
+| Node version | 24.x |
+| Build command | `npm run build` |
+| Package manager | npm |
+| **Output directory** | **`out`** — not `.next` |
+
+Two constraints of that build container are already handled in this repo, and
+both must stay as they are:
+
+1. **`next.config.mjs`, not `.ts`.** The container's glibc is older than 2.29,
+   so Next.js cannot load its native SWC binary and falls back to WebAssembly —
+   which cannot compile a TypeScript config. A `.mjs` config is read directly by
+   Node.
+2. **`npm run build` uses `next build --webpack`.** Turbopack is Rust-only with
+   no WASM fallback, so it cannot run there at all. Webpack works with the WASM
+   compiler. `npm run build:turbo` is kept for fast local builds.
+
+Expect the hosted build to take several minutes — the WASM compiler is far
+slower than the native one.
+
+### Alternative: the pre-built `deploy` branch
 
 1. **hPanel → Websites → Manage → Advanced → GIT**
 2. **Repository:** `git@github.com:thevipulkumar/Farmyuga.git`

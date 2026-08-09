@@ -1,11 +1,20 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/**
+ * Plain JavaScript on purpose — do NOT rename this back to next.config.ts.
+ *
+ * Hostinger's build container ships a glibc older than 2.29, so Next.js cannot
+ * load its native SWC binary and falls back to the WebAssembly compiler. That
+ * fallback cannot compile a TypeScript config, which fails the build with
+ * "Cannot find module ....next.config". A .mjs config is read directly by Node
+ * and sidesteps the whole problem. The JSDoc type below keeps editor
+ * autocomplete and type checking without needing a compile step.
+ *
+ * @type {import('next').NextConfig}
+ */
+const nextConfig = {
   /**
    * Static export — the whole site compiles to plain HTML/CSS/JS in `out/`,
-   * which is what Hostinger's shared hosting (Apache/LiteSpeed + PHP) serves.
-   * There is no Node process in production, so there are no route handlers;
-   * the inquiry form posts to public/api/inquiry.php instead.
+   * which is the directory Hostinger serves. Set "Output directory" to `out`
+   * in the Hostinger build settings, not `.next`.
    */
   output: "export",
 
