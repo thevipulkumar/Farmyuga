@@ -8,7 +8,25 @@
  * alert. It lives in public/ so `next build` copies it into out/api/.
  *
  * -----------------------------------------------------------------------------
- * OWNER — CONFIGURE THIS BLOCK, then upload. Nothing else needs editing.
+ * OWNER — WHERE TO PUT YOUR SETTINGS
+ * -----------------------------------------------------------------------------
+ * If you deploy from GitHub, DO NOT edit the values in this file: every deploy
+ * overwrites it and your settings (and any WhatsApp token) would be lost, or
+ * committed to the repository.
+ *
+ * Instead create ONE file on the server, one level above public_html, at:
+ *
+ *     /home/<user>/farmyuga-config.php
+ *
+ * containing:
+ *
+ *     <?php
+ *     $LEAD_TO_EMAIL   = 'hello@yourdomain.com';
+ *     $LEAD_FROM_EMAIL = 'no-reply@yourdomain.com';
+ *     $WHATSAPP_TOKEN  = '...';   // optional
+ *
+ * It sits outside the web root, so it is neither web-readable nor touched by
+ * deploys. Anything it defines overrides the defaults below.
  * -----------------------------------------------------------------------------
  */
 
@@ -33,6 +51,12 @@ $WHATSAPP_TEMPLATE_NAME   = '';             // approved template name, or ''
 $LEAD_LOG = __DIR__ . '/../../farmyuga-inquiries.log';
 
 /* ========================= no edits needed below ========================== */
+
+// Server-side overrides, kept outside the web root and safe from deploys.
+$externalConfig = __DIR__ . '/../../farmyuga-config.php';
+if (is_readable($externalConfig)) {
+    require $externalConfig;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 

@@ -179,7 +179,62 @@ process. So the site is built into static HTML here, and only the finished
 `out/` folder is uploaded. The inquiry form posts to a small PHP script rather
 than a Node route.
 
-### Every deploy
+### Two branches
+
+| Branch | Contains | Purpose |
+| --- | --- | --- |
+| `main` | Source code | What you edit. Never deployed directly |
+| `deploy` | The built site at its root | What Hostinger pulls into `public_html` |
+
+Hostinger's Git integration copies a branch into `public_html` **without running
+a build** — it has no Node. So `deploy` holds the finished HTML, and one command
+regenerates it:
+
+```bash
+npm run deploy
+```
+
+That builds, verifies `index.html`, `.htaccess` and `api/inquiry.php` are all
+present, and force-pushes `out/` to the `deploy` branch as a single fresh commit.
+Then trigger the pull in hPanel (or let auto-deployment do it).
+
+### One-time: connect Hostinger to GitHub
+
+1. **hPanel → Websites → Manage → Advanced → GIT**
+2. **Repository:** `git@github.com:thevipulkumar/Farmyuga.git`
+   **Branch:** `deploy`
+   **Directory:** leave blank (deploys into `public_html`)
+3. Private repo, so Hostinger shows you an **SSH public key** — copy it and add
+   it at **GitHub → repo → Settings → Deploy keys → Add deploy key**, read-only.
+4. `public_html` must be **empty** before the first clone. Delete Hostinger's
+   default `index.html` / `default.php` placeholder first.
+5. Optional: copy the **auto-deployment webhook URL** from the same page into
+   **GitHub → Settings → Webhooks**. Then `npm run deploy` alone publishes the
+   site, with nothing to click.
+
+### Settings that must survive a deploy
+
+Every deploy overwrites `public_html`, so **never** edit `api/inquiry.php` on the
+server — your changes would be wiped, and a WhatsApp token put in the repo would
+be committed history.
+
+Instead create one file **above** the web root, at `/home/<user>/farmyuga-config.php`:
+
+```php
+<?php
+$LEAD_TO_EMAIL   = 'hello@yourdomain.com';
+$LEAD_FROM_EMAIL = 'no-reply@yourdomain.com';
+// optional WhatsApp alerts
+$WHATSAPP_TOKEN           = '';
+$WHATSAPP_PHONE_NUMBER_ID = '';
+$WHATSAPP_ALERT_TO        = '917209909097';
+$WHATSAPP_TEMPLATE_NAME   = '';
+```
+
+`inquiry.php` loads it automatically if present and anything it defines wins.
+It is outside the web root, so it is neither web-readable nor touched by deploys.
+
+### Manual upload (if you skip the Git integration)
 
 1. **Build locally**
 
@@ -206,13 +261,8 @@ than a Node route.
    `hello@yourdomain.com`. Also create `no-reply@yourdomain.com`, or reuse the
    same address for both.
 
-2. **Configure the PHP endpoint.** Open `public_html/api/inquiry.php` in File
-   Manager and edit the block at the top:
-
-   ```php
-   $LEAD_TO_EMAIL   = 'hello@yourdomain.com';   // where leads arrive
-   $LEAD_FROM_EMAIL = 'no-reply@yourdomain.com'; // must be on YOUR domain
-   ```
+2. **Create `/home/<user>/farmyuga-config.php`** with your addresses (see
+   "Settings that must survive a deploy" above).
 
    `$LEAD_FROM_EMAIL` **must** be a real mailbox on your own domain. A From
    address on someone else's domain gets treated as spoofed and lands in spam.
@@ -239,7 +289,8 @@ and phone numbers. Never move it into `public_html`.
 
 ### WhatsApp alerts (optional)
 
-Fill in the `$WHATSAPP_*` variables at the top of `inquiry.php`. You need a Meta
+Put the `$WHATSAPP_*` values in `/home/<user>/farmyuga-config.php`, never in the
+repository. You need a Meta
 WhatsApp Cloud API app, a permanent access token and your phone number ID.
 
 Note the constraint: Meta only allows free-form WhatsApp text inside a 24-hour
@@ -254,7 +305,7 @@ works immediately with none of this.
 | | Effect |
 | --- | --- |
 | Image optimization | Off. Little practical loss — every photo already requests an exact size from the Unsplash CDN |
-| Deploys | Manual upload rather than `git push`. The repo is still the source of truth |
+| Deploys | `npm run deploy` then a pull in hPanel, rather than a single `git push` |
 | Server rendering | None. `?category=` and `?item=` are read client-side instead |
 
 If you later move to a Hostinger **VPS** or any Node host, remove `output: "export"`
