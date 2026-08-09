@@ -31,9 +31,13 @@ deployment:
     - /bin/bash -lc "cd $DEPLOYPATH/../repositories/farmyuga 2>/dev/null || cd \"$PWD\"; git archive HEAD | tar -x -C $DEPLOYPATH"
 
     # Install exactly what package-lock.json specifies, then build.
-    # Dev dependencies are needed here: `next build` type-checks with
-    # TypeScript, so do NOT add --omit=dev.
-    - /bin/bash -lc "source $NODEENV && cd $DEPLOYPATH && (npm ci --no-audit --no-fund || npm install --no-audit --no-fund)"
+    #
+    # --include=dev is REQUIRED. cPanel's activate script sets
+    # NODE_ENV=production, which makes npm skip devDependencies — and the
+    # build needs @tailwindcss/postcss, tailwindcss and typescript, all of
+    # which live there. Without this flag the build dies with
+    # "Cannot find module '@tailwindcss/postcss'".
+    - /bin/bash -lc "source $NODEENV && cd $DEPLOYPATH && (npm ci --include=dev --no-audit --no-fund || npm install --include=dev --no-audit --no-fund)"
     - /bin/bash -lc "source $NODEENV && cd $DEPLOYPATH && NODE_ENV=production npm run build"
 
     # Passenger reloads the app when this file's timestamp changes.
