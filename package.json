@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "npx serve out",
+    "start": "next start",
     "lint": "eslint",
+    "preview": "npx serve out",
     "deploy": "bash scripts/deploy.sh",
     "build:turbo": "next build"
   },

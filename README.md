@@ -51,8 +51,12 @@ npm run lint
 ```
 
 `npm run build` produces a complete static site in **`out/`** — that folder is
-what gets uploaded. `npm start` serves `out/` locally so you can check the built
-site before uploading.
+what gets uploaded. **`npm run preview`** serves `out/` locally so you can check
+the built site before publishing.
+
+Note `npm start` is `next start`, kept only so framework detectors (Hostinger's
+included) recognise this as a Next.js project. It will not actually run while
+`output: "export"` is set — use `npm run preview` instead.
 
 Both must pass cleanly before you deploy. There are currently zero TypeScript and
 zero ESLint errors.
